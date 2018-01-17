@@ -1,0 +1,3 @@
+sample_directory	ko_barcode_file	condition	treatment	moi
+data/singles_cellranger_output/cropseq/singles_dox_100nm_SI-3A-A6	temp_data/ko_barcodes/cropseq/singles_dox_100nm_SI-3A-A6_ko_barcodes.no_enrichment.txt	dox_100nm_singles	dox_100nm	singles
+data/singles_cellranger_output/cropseq/singles_mock_SI-3A-A5	temp_data/ko_barcodes/cropseq/singles_mock_SI-3A-A5_ko_barcodes.no_enrichment.txt	mock_singles	mock	singles

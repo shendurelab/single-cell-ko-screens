@@ -1,0 +1,9 @@
+fastq_file	bfp_count	bfp_proportion	gfp_count	gfp_proportion
+data/facs_swap_experiment/bfp_only.blue_sorted.R1_001.fastq.gz	60593.0	0.997941302414	125.0	0.00205869758556
+data/facs_swap_experiment/gfp_only.green_sorted.R1_001.fastq.gz	198.0	0.00232151860146	85091.0	0.997678481399
+data/facs_swap_experiment/mixed_cells.blue_sorted.R1_001.fastq.gz	50458.0	0.988849040704	569.0	0.0111509592961
+data/facs_swap_experiment/mixed_cells.green_sorted.R1_001.fastq.gz	1264.0	0.0180669506303	68698.0	0.98193304937
+data/facs_swap_experiment/pooled_virus.blue_sorted.R1_001.fastq.gz	18629.0	0.667108325873	9296.0	0.332891674127
+data/facs_swap_experiment/pooled_virus.green_sorted.R1_001.fastq.gz	17242.0	0.224222011262	59655.0	0.775777988738
+data/facs_swap_experiment/separate_virus.blue_sorted.R1_001.fastq.gz	67946.0	0.989817175322	699.0	0.0101828246777
+data/facs_swap_experiment/separate_virus.green_sort.R1_001.fastq.gz	5442.0	0.0746737653855	67435.0	0.925326234614
