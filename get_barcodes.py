@@ -161,7 +161,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_file', '-o', help='Tab delimited file with cell, mutation barcode, read count, umi count. All observed barcodes correctable to a whitelist are reported.')
     parser.add_argument('--whitelist', required=False, default=None, help='Optional mutation barcode whitelist.')
     parser.add_argument('--search_seq', required=True, help='Sequence to search for immediately upstream of the mutation barcode in transcript.')
-    parser.add_argument('--barcode_length', required=True, type=int, help='Length of barcodes in bp.')
+    parser.add_argument('--barcode_length', required=False, type=int, help='If you are not providing a whitelist, you must provide the length of your barcodes in bp.')
     parser.add_argument('--chimeric_threshold', type=float, default=0.2, help='Threshold for calling a UMI non-chimeric.')
     parser.add_argument('--no_swalign', action='store_true', help='Flag to turn off smith waterman alignment which otherwise requires skbio package / python 3')
     parser.add_argument('--force_correction', type=int, help='Force correction to a specified edit distance. WARNING: if this is greater than or equal to the min edit distance between guides, corrections might reflect cross-talk between guide/barcode sequences.')
@@ -192,6 +192,18 @@ if __name__ == '__main__':
         barcode_whitelist = load_whitelist(open(args.whitelist))
     else:
         barcode_whitelist = None
+
+    if not barcode_whitelist and args.barcode_length is None:
+        # Need to know length somehow...
+        raise ValueError('When not providing a whitelist file with expected barcodes with --whitelist, you must specify the length of your barcodes with --barcode_length. Please use one of these two options.')
+    elif barcode_whitelist is not None:
+        # Look for conflicts and if non found just set automatically based on whitelist
+        barcode_lengths = [len(x) for x in barcode_whitelist]
+
+        if len(set(barcode_lengths)) > 1:
+            raise ValueError('Whitelist contains sequences of differing length. All barcodes must be same length (can just pad with next base for example).')
+
+        args.barcode_length = barcode_lengths[0]
 
     # Sanity check on hamming distance within whitelist
     hamming_distances = []

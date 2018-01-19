@@ -61,7 +61,7 @@ pdata = 'temp_data/aggregated_cds_pdata.txt'
 guide_gene_associations = 'data/guide_gene_associations.txt'
 barcode_qc_plot = 'supplemental_figures/barcode_enrichment_qc.png'
 
-command = "Rscript preprocess_cfg.R %s %s %s --guide_metadata %s --barcode_enrichment_qc_plot %s" % (metadata_file, cds, pdata, guide_gene_associations, barcode_qc_plot)
+command = "Rscript preprocess_cfg.R %s %s %s --guide_metadata %s --barcode_enrichment_qc_plot %s --size_factor_filter --genotype_indicator_columns" % (metadata_file, cds, pdata, guide_gene_associations, barcode_qc_plot)
 
 pipeline.add(command, name=PREPROCESS_CDS, memory='50G', dependencies=[DETECT_BARCODES], outputs=[cds, pdata, barcode_qc_plot])
 
@@ -74,7 +74,7 @@ pdata_no_enrichment = 'temp_data/aggregated_cds_pdata.no_enrichment.txt'
 guide_gene_associations = 'data/guide_gene_associations.txt'
 barcode_qc_plot_no_enrichment = 'diagnostic_plots/barcode_enrichment_qc.no_enrichment.png'
 
-command = "Rscript preprocess_cfg.R %s %s %s --guide_metadata %s --barcode_enrichment_qc_plot %s --ko_assignment_reads_threshold 3" % (metadata_file_no_enrichment, cds_no_enrichment, pdata_no_enrichment, guide_gene_associations, barcode_qc_plot_no_enrichment)
+command = "Rscript preprocess_cfg.R %s %s %s --guide_metadata %s --barcode_enrichment_qc_plot %s --ko_assignment_reads_threshold 3 --size_factor_filter --genotype_indicator_columns" % (metadata_file_no_enrichment, cds_no_enrichment, pdata_no_enrichment, guide_gene_associations, barcode_qc_plot_no_enrichment)
 
 pipeline.add(command, name=PREPROCESS_CDS, memory='50G', dependencies=[DETECT_BARCODES], outputs=[cds_no_enrichment, pdata_no_enrichment, barcode_qc_plot_no_enrichment])
 
@@ -88,7 +88,7 @@ guide_gene_associations_initial_screens = 'data/barcode_gene_associations.initia
 barcode_qc_plot_initial_screens = 'supplemental_figures/barcode_enrichment_qc.initial_10_target.png'
 
 # Note running with low size factor cluster removal turned off
-command = "Rscript preprocess_cfg.R %s %s %s --guide_metadata %s --barcode_enrichment_qc_plot %s --no_size_factor_filter --aggregated" % (metadata_file_initial_screens, cds_initial_screens, pdata_initial_screens, guide_gene_associations_initial_screens, barcode_qc_plot_initial_screens)
+command = "Rscript preprocess_cfg.R %s %s %s --guide_metadata %s --barcode_enrichment_qc_plot %s --aggregated --genotype_indicator_columns" % (metadata_file_initial_screens, cds_initial_screens, pdata_initial_screens, guide_gene_associations_initial_screens, barcode_qc_plot_initial_screens)
 
 pipeline.add(command, name=PREPROCESS_CDS, memory='50G', dependencies=[DETECT_BARCODES], outputs=[cds_initial_screens, pdata_initial_screens, barcode_qc_plot_initial_screens])
 

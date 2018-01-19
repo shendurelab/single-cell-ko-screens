@@ -7,7 +7,7 @@ library(ggplot2)
 library(gridExtra)
 library(scales)
 library(viridis)
-options(stringsAsFactors=F)
+options(stringsAsFactors=FALSE)
 options(bitmapType='cairo')
 
 .tenx_to_cds = function(pipeline_dirs, genome="hg19", filtered=TRUE) {
@@ -232,7 +232,7 @@ parser$add_argument('sample_metadata', help='Table with sample metadata.')
 parser$add_argument('output_cds', help='Output with CDS.')
 parser$add_argument('output_pdata', help='Output with just pData of CDS.')
 parser$add_argument('--genome', default='hg19', help='Genome used with cellranger to process data. Default is hg19')
-parser$add_argument('--barcode_enrichment_qc_plot', required=TRUE, help='A file to output QC plot of barcode enrichment libraries.')
+parser$add_argument('--barcode_enrichment_qc_plot', required=FALSE, help='A file to output QC plot of barcode enrichment libraries.')
 parser$add_argument('--guide_metadata', required=TRUE, help='A table of each guide and the gene it is associated with and any other metadata, must have "gene" and "guide" columns.')
 parser$add_argument('--aggregated', action='store_true', help='Flag to indicate that the run directory specified in sample_directory column is an aggregated run. Must be same for all samples, samples must be in same order as aggregate samplesheet.')
 parser$add_argument('--umis', action='store_true', help='Base thresholds and plots on UMI counts rather than the default read counts when assigning barcodes to cells.')
@@ -240,9 +240,10 @@ parser$add_argument('--ko_assignment_reads_threshold', type='double', default=10
 parser$add_argument('--ko_assignment_proportion_threshold', type='double', default=0.075, help='The total proportion of data from a cell a guide must make up to be considered a valid guide observation.')
 parser$add_argument('--ko_barcode_total_proportion_threshold', type='double', default=0.8, help='Total proportion all guides must make up to be considered a valid assignment.')
 parser$add_argument('--cell_detection_threshold', type='integer', default=50, help='The number of cells a gene must be detected in to be considered for dim reduction in flagging low size factor cells.')
-parser$add_argument('--log2_size_factor_threshold', type='double', default=-0.85, help='The lower threshold on average size factor for any cluster.')
-parser$add_argument('--no_size_factor_filter', action='store_true', help='Skips filtering of clusters that have low size factors on average.')
-parser$add_argument('--no_genotype_indicator_columns', action='store_true', help='This prevents a TRUE/FALSE column for every individual genotype from being generated, reducing the total columns in the metadata table.')
+parser$add_argument('--log2_size_factor_threshold', type='double', default=-0.85, help='The lower threshold on average size factor for any cluster if --size_factor_filter is turned on.')
+parser$add_argument('--size_factor_filter', action='store_true', help='Turns on filtering of clusters that have low size factors on average.')
+parser$add_argument('--genotype_indicator_columns', action='store_true', help='This generates a TRUE/FALSE column for every individual genotype from being generated.')
+
 args = parser$parse_args()
 
 # Load in metadata (sample_directory, ko_barcode_file, ...)
@@ -292,36 +293,39 @@ if (! args$aggregated) {
 
 
 ## Generate QC plot for barcode enrichment
-if (args$umis) {
-    combined_barcodes_plot_df$count_column = combined_barcodes_plot_df$umi_count
-} else {
-    combined_barcodes_plot_df$count_column = combined_barcodes_plot_df$read_count
-}
+if (! is.null(args$barcode_enrichment_qc_plot) {
+    combined_barcodes_plot_df = do.call(rbind, ko_barcodes)
 
-combined_barcodes_plot_df = do.call(rbind, ko_barcodes)
-combined_barcodes_plot_df = combined_barcodes_plot_df %>%
-				dplyr::group_by(sample, cell) %>%
+    if (args$umis) {
+        combined_barcodes_plot_df$count_column = combined_barcodes_plot_df$umi_count
+    } else {
+        combined_barcodes_plot_df$count_column = combined_barcodes_plot_df$read_count
+    }
+
+    combined_barcodes_plot_df = combined_barcodes_plot_df %>%
+    				dplyr::group_by(sample, cell) %>%
 				dplyr::mutate(valid=proportion > args$ko_assignment_proportion_threshold & count_column > args$ko_assignment_reads_threshold) %>%
 				dplyr::mutate(guide_count = sum(valid)) %>% 
 				ungroup()
 
-combined_barcodes_plot_df$category = 'single guide'
-combined_barcodes_plot_df$category[!combined_barcodes_plot_df$cell %in% aggregated_cds$cell] = 'background barcode'
-combined_barcodes_plot_df$category[combined_barcodes_plot_df$guide_count < 1 & combined_barcodes_plot_df$category != 'background barcode'] = 'unassigned'
-combined_barcodes_plot_df$category[combined_barcodes_plot_df$guide_count > 1 & combined_barcodes_plot_df$category != 'background barcode'] = 'multiple guides' 
+    combined_barcodes_plot_df$category = 'single guide'
+    combined_barcodes_plot_df$category[!combined_barcodes_plot_df$cell %in% aggregated_cds$cell] = 'background barcode'
+    combined_barcodes_plot_df$category[combined_barcodes_plot_df$guide_count < 1 & combined_barcodes_plot_df$category != 'background barcode'] = 'unassigned'
+    combined_barcodes_plot_df$category[combined_barcodes_plot_df$guide_count > 1 & combined_barcodes_plot_df$category != 'background barcode'] = 'multiple guides' 
  
-ggplot(combined_barcodes_plot_df, aes(x=proportion, y=log10(count_column))) +
-    geom_point(data=subset(combined_barcodes_plot_df, category == 'background_barcode'), size=0.15, alpha=0.5, aes(color=category)) +
-    geom_point(data=subset(combined_barcodes_plot_df, category != 'background_barcode'), size=0.15, alpha=0.5, aes(color=category)) +
-    geom_vline(xintercept=args$ko_assignment_proportion_threshold, color="red", size=1) +
-    geom_hline(yintercept=log10(args$ko_assignment_reads_threshold), color="red", size=1, alpha=0.5) +
-    facet_wrap(~sample, ncol=4) +
-    xlab('barcode proportion') +
-    ylab(paste('log10(', ifelse(args$umis, 'umis', 'reads'), 'reads from barcode)', sep='')) +
-    theme_cfg() +
-    theme(panel.margin = unit(1, "lines")) +
-    scale_color_manual(values=c('background barcode'='#d3d3d3', 'multiple guides'='#51A7F9', 'single guide'='black', 'unassigned'='#F39019'), guide=FALSE) + 
-    ggsave(args$barcode_enrichment_qc_plot, height=5, width=8)
+    ggplot(combined_barcodes_plot_df, aes(x=proportion, y=log10(count_column))) +
+        geom_point(data=subset(combined_barcodes_plot_df, category == 'background_barcode'), size=0.15, alpha=0.5, aes(color=category)) +
+        geom_point(data=subset(combined_barcodes_plot_df, category != 'background_barcode'), size=0.15, alpha=0.5, aes(color=category)) +
+        geom_vline(xintercept=args$ko_assignment_proportion_threshold, color="red", size=1) +
+        geom_hline(yintercept=log10(args$ko_assignment_reads_threshold), color="red", size=1, alpha=0.5) +
+        facet_wrap(~sample, ncol=4) +
+        xlab('barcode proportion') +
+        ylab(paste('log10(', ifelse(args$umis, 'umis', 'reads'), ' from barcode)', sep='')) +
+        theme_cfg() +
+        theme(panel.margin = unit(1, "lines")) +
+        scale_color_manual(values=c('background barcode'='#d3d3d3', 'multiple guides'='#51A7F9', 'single guide'='black', 'unassigned'='#F39019'), guide=FALSE) + 
+        ggsave(args$barcode_enrichment_qc_plot, height=5, width=8)
+}
 
 # Make KO assignments
 ko_barcodes.filtered = lapply(ko_barcodes, get_filtered_barcodes, reads_threshold = args$ko_assignment_reads_threshold, proportion_threshold = args$ko_assignment_proportion_threshold, umis=args$umis)
@@ -336,7 +340,7 @@ aggregate_samples_pdata = merge(pData(aggregated_cds), all_assignments, all.x=T)
 aggregate_samples_pdata = merge(aggregate_samples_pdata, sample_metadata)
 
 # Expand pdata to include a TRUE/FALSE column for every individual KO
-if (! args$no_genotype_indicator_columns) {
+if (args$genotype_indicator_columns) {
     aggregate_samples_pdata = expand_genotypes_to_indicator(aggregate_samples_pdata)
 }
 
@@ -348,7 +352,7 @@ pData(aggregated_cds) = aggregate_samples_pdata[row.names(pData(aggregated_cds))
 # Remove clusters of cells with much lower average size factors
 ##################################################################
 # Subset out each sample
-if ( ! args$no_size_factor_filter) {
+if ( args$size_factor_filter) {
 	low_size_factor_results = lapply(unique(pData(aggregated_cds)$sample), function(x) {
 		cds_subset = aggregated_cds[, pData(aggregated_cds)$sample == x]
 		flag_low_size_factor_clusters(cds_subset, args$cell_detection_threshold, args$log2_size_factor_threshold)

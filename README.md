@@ -94,12 +94,10 @@ You then need to specify the sequence that will appear directly in front of the 
 
 You may then run the script like so:
 ```
-python get_barcodes.py --input_bams my_barcode_enrichment_cellranger_dir/outs/possorted_genome_bam.bam -o ko_barcodes.txt --whitelist whitelist.txt --search_seq GTGGAAAGGACGAAACACCG --chimeric_threshold 0.20 --barcode_length 20
+python get_barcodes.py --input_bams my_barcode_enrichment_cellranger_dir/outs/possorted_genome_bam.bam -o ko_barcodes.txt --whitelist whitelist.txt --search_seq GTGGAAAGGACGAAACACCG
 ```
 
 The BAM file used as input may also be a space-separated list of BAM files if needed.
-
-Note that the last argument is a threshold for detecting chimeras from PCR using UMIs as described in [Dixit et al.](http://www.cell.com/cell/references/S0092-8674(16)31610-5). We typically use 0.20 (as suggested in Dixit et al.) and it tends to clean out some of the noisy spurious barcodes that we observe in cells. By default this feature is not turned on, but in most cases we use it as shown above.
 
 This will output a file that looks like this (TSV format):
 ```
@@ -107,9 +105,11 @@ cell               barcode                 read_count   umi_count
 ATGACGTGCGACAT-1   GTCCGACCCTGGATGCCAAT    1037         27
 ```
 
-Where each row is an observed barcode in a given cell and the associated read and UMI counts. Counts for reads deemed to be chimeric via the threshold mentioned above are set to zero in the output file. There may also be a number of low count entries, and this is pretty typical and they are readily filtered in downstream analysis.
+Where each row is an observed barcode in a given cell and the associated read and UMI counts. There may also be a number of low count entries, and this is pretty typical and they are readily filtered in downstream analysis. Counts of zero in this file are the result of chimera removal described below.
 
-Note that we attempt to correct barcodes within a reasonable edit distance (which you may also set explicitly with `--force_correction <int>`). If a barcode is observed that was not correctable to your whitelist it wil be prefixed with `unprocessed_`. This may result from sequences missing from your whitelist or reads with high rates of sequencing error, for example.
+Note that by default, we use an unsupervised method for detecting chimeras from PCR via UMIs as described in [Dixit et al.](http://www.cell.com/cell/references/S0092-8674(16)31610-5). This is a very simple method where, within each cell, we tabulate the number of times we observe each UMI and then tabulate the number of times we observe each UMI supporting each potential genotype. For each UMI/genotype combination if the ratio of the number of UMI observations in support of that genotype to all instances of that UMI in the cell less than 0.20, the reads are deemed to be chimeras (spurious molecules where the UMIs now appear on a different molecule than the original) and removed. This tends to clean out some of the spurious barcodes that we observe in cells. You may set to 0 to turn off or raise to be more stringent with the `--chimeric_threshold` argument.
+
+Note that we attempt to correct barcodes within a reasonable edit distance (which you may also set explicitly with `--force_correction <int>`). If a barcode is observed that was not correctable to your whitelist it will be prefixed with `unprocessed_`. This may result from sequences missing from your whitelist or reads with high rates of sequencing error, for example.
 
 Note that if you are running this script without `scikit-bio` installed (only available for python3), you will have to use the `--no_swalign` option. If you do have skbio, running with the default will allow the program to search for imperfect matches for the `--search-seq` thus rescuing as many reads as possible.
 
@@ -140,27 +140,29 @@ Where the first column (no headers) is a gene name (or whatever is relevant to y
 
 Finally, you may then run the following:
 ```
-Rscript preprocess_cfg.R sample_metadata.txt output_cds.rds output_metadata.txt --guide_metadata gene_barcode_associations.txt --barcode_enrichment_qc_plot qc_plot.png --no_size_factor_filter
+Rscript preprocess_cfg.R sample_metadata.txt output_cds.rds output_metadata.txt --guide_metadata gene_barcode_associations.txt --barcode_enrichment_qc_plot qc_plot.png
 ```
 
-In our paper, we look for clusters of cells that have very low UMI counts on average and try to remove them. The command above would not do this and we assume is what most people would prefer. You may turn this feature on by removing `--no_size_factor_filter` from the command above and you can also adjust the threshold as needed with `--log2_size_factor_threshold` (default -0.85).
+Note that the `barcode_enrichment_qc_plot` (described below) is optional but we think it is useful to examine for each experiment.
 
-There are a few other options that you may want to change depending on your data:
+There are a few other options that you may want to change depending on your needs:
 - `--genome`: hg19 by default, but this must match the name of the genome used in your cellranger run
-- `--ko_assignment_reads_threshold`: 10 by default; the number of reads required for a barcode to be considered
-- `--ko_assignment_proportion_threshold`: 0.075 by default; the fraction of all reads from barcoded transcripts in each cell that a given barcode must exceed to be considered a real barcode
+- `--ko_assignment_reads_threshold`: 10 by default; the number of reads (or umis if --umis set) required for a barcode to be considered
+- `--ko_assignment_proportion_threshold`: 0.075 by default; the fraction of all reads (or umis if --umis set) from barcoded transcripts in each cell that a given barcode must exceed to be considered a real barcode
 - `--aggregated`: if you happen to use `cellranger aggregate` and you are pointing to aggregated output, you must set this flag
 - `--umis`: use UMI counts for thresholds and qc plot instead of read counts
-- `--no_genotype_indicator_columns`: by default for every genotype we generate a column that has TRUE for cells that have this genotype present. This can be useful for certain tasks, but setting this flag prevents these columns from being generated.
+- `--genotype_indicator_columns`: this will add column for every individual target (combined across guides/barcodes) that has TRUE for cells that have this genotype present.
+- `--size_factor_filter`: we sometimes find it useful to remove clusters of cells with low average size factors and this turns that feature on (takes much longer because it will perform dimensionality reduction and clustering)
+- `--log2_size_factor_threshold` (default -0.85): when using `--size_factor_filter`, this is the threshold imposed in the log2(average size factor) for clusters.
 
-Different thresholds can be chosen to be more or less strict about which barcodes should be included. For the time being, we typically just choose thresholds that seem reasonable; there is no automated strategy that we have developed thus far.
+Different `ko_assignment_*` thresholds can be chosen to be more or less strict about which barcodes should be included. For the time being, we typically just choose thresholds that seem reasonable; there is no automated strategy that we have developed thus far.
 
 We have also explored using UMIs rather than reads for the latter two arguments and find that in some cases it improves results. If you want to use UMIs, you may specify the `--umis` option and the above thresholds will be with respect to UMI counts rather than read counts. The QC plot in this case would also use UMIs when using this option.
 
 The main output files from this script are (as named in toy example above):
 - `output_cds.R`: the monocle CellDataSet object in RDS format. Can be read into R with `readRDS` function. pData table of this CDS object is equivalent to the metadata table below.
 - `output_metadata.txt`: a TSV formatted metadata table of cells and their assigned barcodes and metadata fields. Note that the `gene` column will contain the assigned gene (or genes) based on your `gene_barcode_association.txt` file. There are also a set of indicator columns with TRUE when a barcode to a given gene is observed in a given cell, `guide_count` column or the number of guides observed in the cell (passing above thresholds), columns that specify the guide/barcode sequences observed, etc. Most of them should be fairly self explanatory.
-- `qc_plot.png` this is a plot that we typically make to perform a quick check of our barcode enrichment libraries and the thresholds we have chosen. An example is provided below (see the supplement of our paper for details and more examples).
+- `qc_plot.png` (optional) this is a plot that we typically make to perform a quick check of our barcode enrichment libraries and the thresholds we have chosen. An example is provided below (see the supplement of our paper for details and more examples).
 
 Example QC plot:
 ![QC_PLOT](supplemental_figures/barcode_enrichment_qc.png)
