@@ -1,15 +1,17 @@
 # On the design of CRISPR-based single cell molecular screens
-This is a resource for the paper `On the design of CRISPR-based single cell molecular screens`, from the Shendure/Trapnell labs. The paper is available on the [Nature Methods website here](TODO).
+This is a resource for the paper `On the design of CRISPR-based single cell molecular screens`, from the Shendure/Trapnell labs. The paper is available on the journal website here (coming soon).
 
 We provide info on:
 - how to access reagents for CROP-seq for use with CRISPR or CRISPRi
+- how to perform enrichment PCR for CROP-seq experiments
 - how to use a few pieces of software we have developed to assign guide sequences (or any barcode sequence) to cells in CROP-seq assays or similar
 - how to download data from our paper
 - the complete set of scripts that we used for the analysis in the paper
 
 ## Table of Contents
 * [Reagents](#reagents)
-* [Useful Scripts](#useful-scripts)
+* [Enrichment PCR](#enrichment-pcr)
+* [Useful Scripts](#useful-script)
    * [Script dependencies](#script-dependencies)
    * [get_barcodes.py](#get_barcodespy)
    * [preprocess_cfg.R](#preprocess_cfgr)
@@ -33,17 +35,82 @@ See our paper for a full set of vectors from this study made available on addgen
 
 Likely of particular interest, we have made a version of the CROP-seq vector that has a grna-backbone that is optimized for CRISPRi (Addgene #106280).
 
-If you use these reagents, software tools provided here, or the improved protocols from our paper, please cite:
+If you use these reagents or software tools provided here, please cite:
 ```
-TODO
+coming soon
 ```
 
-For all CRISPR (not CRISPRi) assays, we simply use the CROPseq-Guide-Puro vector (Addgene #86708) as provided by the Datlinger lab.
+For all CRISPR (not CRISPRi) assays, we simply use the CROPseq-Guide-Puro vector (Addgene #86708) as provided by the Bock lab.
 
-If you use reagents from the Datlinger lab, please cite:
+If you use reagents from the Bock lab, please cite:
 ```
 Paul Datlinger, André F Rendeiro*, Christian Schmidl*, Thomas Krausgruber, Peter Traxler, Johanna Klughammer, Linda C Schuster, Amelie Kuchler, Donat Alpar, Christoph Bock (2016). Pooled CRISPR screening with single-cell transcriptome readout. Nature Methods. DOI: 10.1038/nmeth.4177.
 ```
+
+## Enrichment PCR
+We find that using targeted amplification (as done in Dixit and Adamson et al.) increases the rate of assignment in CROP-seq experiment by approximately two-fold. 
+
+Our amplifications were performed on full-length cDNA prior to shearing, but for CROP-seq amplification out post-sheared product may be fine (not tested).
+
+Importantly, our paper describes a protocol for 10X V1, but 10X currently cells their V2 product. We present both protocols below for CROP-seq.
+
+### 10X V1 (what we did in the paper, but V1 no longer sold)
+All PCR reactions were performed with a P7 reverse primer (as introduced by the 10X V1 oligo DT RT primer). The PCR was performed with:
+
+```
+TTTCCCATGATTCCTTCATATTTGC
+```
+
+as the forward primer, priming to part of the U6 promoter. In a second reaction, we then use:
+
+```
+TCGTCGGCAGCGTCAGATGTGTATAAGAGACAG-cTTGTGGAAAGGACGAAACAC
+```
+
+as the forward primer, priming an inner portion of the U6 promoter adjacent to the guide sequence and adding the standard Nextera R1 primer. Samples were then indexed in a final PCR using standard Nextera P5 index primers of the form:
+
+```
+AATGATACGGCGACCACCGAGATCTACAC[8bp Index]TCGTCGGCAGCGTC
+```
+
+Each PCR was cleaned with a 1.0X Ampure XP cleanup and one microliter of a 1:5 dilution of the first PCR was carried forward and a 1:25 dilution of the second PCR was carried into the final PCR reaction. PCRs were monitored by qPCR and stopped just prior to reaching saturation to avoid overamplification. The final PCR was run on a Bioanalyzer to confirm expected product size.
+
+### 10X V2 (what you would probably have to do)
+The 10X V2 library structure is quite different from V1 ([see here for details](https://assets.contentful.com/an68im79xiti/4fIy9tr6qQuCWamIii0iEa/40658acce7a6756e38537584897840e3/CG000108_AssayConfiguration_SC3v2.pdf)), so the primers have to be changed.
+
+The reverse primer is no longer a P7 primer for V2, it is a partial R1 primer in the first reaction:
+```
+CTACACGACGCTCTTCCGATCT
+```
+
+and the remainder of R1 and P5 (separated by hyphen) must be added in the second PCR (although could also do this at any point):
+```
+AATGATACGGCGACCACCGA-GATCTACACTCTTTCCCTACACGACGCTC
+```
+
+The forward primers are similar but also slightly different as R2 must be used instead of R1 on this end due to the flipped construction of V2 libraries.
+
+The first PCR is done with:
+```
+TTTCCCATGATTCCTTCATATTTGC
+```
+
+as the forward primer, priming to part of the U6 promoter as above. In a second reaction, we then use:
+
+```
+GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAG-cTTGTGGAAAGGACGAAACAC
+```
+
+as the forward primer, priming on the U6 promoter adjacent to the guide sequence and adding the standard Nextera R2 primer. Samples can then be indexed in a final PCR using standard Nextera P7 index primers of the form:
+
+```
+CAAGCAGAAGACGGCATACGAGAT[8bp Index]GTCTCGTGGGCTCGG
+```
+
+Other details should be similar to V1 protocol.
+
+### Other protocols
+In principle, this protocol could be adapted to a number of different scRNA-seq methods. If it is not obvious how one might do this in your case, please let us know.
 
 ## Useful Scripts
 There are a couple scripts from this repository that we use for this type of experiment. Documentation for each script can be viewed with `--help`, but the important features are documented here. all but the last of these tools is fairly dependent on the output of the 10X genomics `cellranger` pipeline, so compatibility with other platforms will require tweaks.
@@ -109,7 +176,7 @@ Where each row is an observed barcode in a given cell and the associated read an
 
 Note that by default, we use an unsupervised method for detecting chimeras from PCR via UMIs as described in [Dixit et al.](http://www.cell.com/cell/references/S0092-8674(16)31610-5). This is a very simple method where, within each cell, we tabulate the number of times we observe each UMI and then tabulate the number of times we observe each UMI supporting each potential genotype. For each UMI/genotype combination if the ratio of the number of UMI observations in support of that genotype to all instances of that UMI in the cell less than 0.20, the reads are deemed to be chimeras (spurious molecules where the UMIs now appear on a different molecule than the original) and removed. This tends to clean out some of the spurious barcodes that we observe in cells. You may set to 0 to turn off or raise to be more stringent with the `--chimeric_threshold` argument.
 
-Note that we attempt to correct barcodes within a reasonable edit distance (which you may also set explicitly with `--force_correction <int>`). If a barcode is observed that was not correctable to your whitelist it will be prefixed with `unprocessed_`. This may result from sequences missing from your whitelist or reads with high rates of sequencing error, for example.
+We attempt to correct barcodes within a reasonable edit distance (which you may also set explicitly with `--force_correction <int>`). If a barcode is observed that was not correctable to your whitelist it will be prefixed with `unprocessed_`. This may result from sequences missing from your whitelist or reads with high rates of sequencing error, for example.
 
 Note that if you are running this script without `scikit-bio` installed (only available for python3), you will have to use the `--no_swalign` option. If you do have skbio, running with the default will allow the program to search for imperfect matches for the `--search-seq` thus rescuing as many reads as possible.
 
@@ -382,12 +449,12 @@ We hope that even if you don't run all the analyses that you still find some of 
 Many of the scripts (although not scripts that simply generate figures, etc.) have `--help` enabled to document arguments.
 
 ## Citation
-As mentioned above, if you use reagents such as the CROP-seq vector for use with CRISPRi, software tools provided here, or the improved protocols from our paper, please cite:
+As mentioned above, if you use reagents such as the CROP-seq vector for use with CRISPRi or software tools provided here, please cite:
 ```
-TODO
+coming soon
 ```
 
-If you use reagents from the Datlinger lab, please cite:
+If you use reagents from the Bock lab, please cite:
 ```
 Paul Datlinger, André F Rendeiro*, Christian Schmidl*, Thomas Krausgruber, Peter Traxler, Johanna Klughammer, Linda C Schuster, Amelie Kuchler, Donat Alpar, Christoph Bock (2016). Pooled CRISPR screening with single-cell transcriptome readout. Nature Methods. DOI: 10.1038/nmeth.4177.
 ```
