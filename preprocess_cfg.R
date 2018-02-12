@@ -293,7 +293,7 @@ if (! args$aggregated) {
 
 
 ## Generate QC plot for barcode enrichment
-if (! is.null(args$barcode_enrichment_qc_plot) {
+if (! is.null(args$barcode_enrichment_qc_plot)) {
     combined_barcodes_plot_df = do.call(rbind, ko_barcodes)
 
     if (args$umis) {

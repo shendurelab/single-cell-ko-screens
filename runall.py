@@ -287,7 +287,7 @@ outputs = ['reviewer_figures/cropseq_screen.enrichment.tsne.genotypes.png']
 pipeline.add(command, name=REVIEWER_FIGURES, dependencies=[PREPROCESS_CDS], outputs=outputs, memory='50G')
 
 # Run the pipeline here because this generates some commands that we need
-success = pipeline.run(dry=False)
+success = pipeline.run()
 del pipeline
 
 if not success:
@@ -304,4 +304,4 @@ for command_f in [command_file, mock_informative_command_file, dox_informative_c
 for command in deg_commands:
     pipeline.add(command, name=PAIRWISE_DEG, memory='100G')
 
-pipeline.run(dry=True)
+pipeline.run()

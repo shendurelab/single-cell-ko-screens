@@ -51,13 +51,13 @@ def load_guide_counts(file_object, sample_column=None):
 
 
 		# Get sample
-                if sample_column and sample_column not in entries:
-                    raise ValueError('Column specified as sample column not present in pData table' % sample_column)
+		if sample_column and sample_column not in entries:
+			raise ValueError('Column specified as sample column not present in pData table' % sample_column)
 
-                if sample_column:
-		    sample = entries[sample_column]
-                else:
-                    sample = 'NA'
+		if sample_column:
+			sample = entries[sample_column]
+		else:
+			sample = 'NA'
 
 		# Track counts in dict
 		if sample not in guide_counts:
@@ -82,7 +82,7 @@ if __name__ == '__main__':
 	parser.add_argument('--moi_step', help='Step size for MOI sweeping.', default=0.1, type=float)
 	args = parser.parse_args()
 
-	guide_counts = load_guide_counts(open(args.pdata))
+	guide_counts = load_guide_counts(open(args.pdata), sample_column=args.sample_column)
 
 	with open(args.output_file, 'w') as output_file:
 		# Write header
@@ -94,7 +94,7 @@ if __name__ == '__main__':
 
 			for moi in list(np.arange(args.moi_min, args.moi_max, args.moi_step)):
 				for capture_probability in list(np.arange(args.capture_probability_min, args.capture_probability_max, args.capture_probability_step)):
-					log_likelihood = get_log_likelihood(observed_counts, capture_probability, moi, args.moi_max, sample_column=args.sample_column)
+					log_likelihood = get_log_likelihood(observed_counts, capture_probability, moi, args.moi_max)
 
 					output_file.write('\t'.join([sample, str(capture_probability), str(moi), str(log_likelihood)]) + '\n')
 
