@@ -1,5 +1,5 @@
 # On the design of CRISPR-based single cell molecular screens
-This is a resource for the paper `On the design of CRISPR-based single cell molecular screens`, from the Shendure/Trapnell labs. The paper is available on the journal website here (coming soon).
+This is a resource for the paper `On the design of CRISPR-based single cell molecular screens`, from the Shendure/Trapnell labs. The paper is available on the [Nature Methods website here](https://www-nature-com.offcampus.lib.washington.edu/articles/nmeth.4604) ([also see free link to PDF](https://t.co/yTKzyV9Pyo)).
 
 We provide info on:
 - how to access reagents for CROP-seq for use with CRISPR or CRISPRi
@@ -37,12 +37,12 @@ Likely of particular interest, we have made a version of the CROP-seq vector tha
 
 If you use these reagents or software tools provided here, please cite:
 ```
-coming soon
+Andrew J. Hill*, José L. McFaline-Figueroa*, Lea M. Starita, Molly J. Gasperini, Kenneth A. Matreyek, Jonathan Packer, Dana Jackson, Jay Shendure^, and Cole Trapnell^. 2018. “On the Design of CRISPR-Based Single-Cell Molecular Screens.” Nature Methods, February. https://doi.org/10.1038/nmeth.4604.
 ```
 
 For all CRISPR (not CRISPRi) assays, we simply use the CROPseq-Guide-Puro vector (Addgene #86708) as provided by the Bock lab.
 
-If you use reagents from the Bock lab, please cite:
+If you use CROP-seq and/or reagents from the Bock lab, please cite:
 ```
 Paul Datlinger, André F Rendeiro*, Christian Schmidl*, Thomas Krausgruber, Peter Traxler, Johanna Klughammer, Linda C Schuster, Amelie Kuchler, Donat Alpar, Christoph Bock (2016). Pooled CRISPR screening with single-cell transcriptome readout. Nature Methods. DOI: 10.1038/nmeth.4177.
 ```
@@ -108,6 +108,11 @@ CAAGCAGAAGACGGCATACGAGAT[8bp Index]GTCTCGTGGGCTCGG
 ```
 
 Other details should be similar to V1 protocol.
+
+Here is an example of the products from each of the above 10X V2 enrichment PCR reactions run on a PAGE gel next to a unbiased 10X library as a reference (note there are two roughly 500bp bands for this ladder on PAGE gels):
+![enrichment pcr](images/pcr_enrichment_gel_example.png)
+
+While there may be some other bands visible depending on exposure, we typically observe that approximately 99.9% of reads don't map to the reference used by cellranger (endogenous), and the majority of remaining fragments have what appear to be correct sequences with most remaining reads largely appearing to have errors due to things like sequencing errors, synthesis errors, PCR errors, etc. We have also seen a couple cells that have empty vectors with no guide (extremely infrequent). 
 
 ### Other protocols
 In principle, this protocol could be adapted to a number of different scRNA-seq methods. If it is not obvious how one might do this in your case, please let us know.
@@ -449,12 +454,12 @@ We hope that even if you don't run all the analyses that you still find some of 
 Many of the scripts (although not scripts that simply generate figures, etc.) have `--help` enabled to document arguments.
 
 ## Citation
-As mentioned above, if you use reagents such as the CROP-seq vector for use with CRISPRi or software tools provided here, please cite:
+As mentioned above, if you use reagents from our paper, such as the CROP-seq vector optimized for use with CRISPRi, or software tools provided here, please cite:
 ```
-coming soon
+Andrew J. Hill*, José L. McFaline-Figueroa*, Lea M. Starita, Molly J. Gasperini, Kenneth A. Matreyek, Jonathan Packer, Dana Jackson, Jay Shendure^, and Cole Trapnell^. 2018. “On the Design of CRISPR-Based Single-Cell Molecular Screens.” Nature Methods, February. https://doi.org/10.1038/nmeth.4604.
 ```
 
-If you use reagents from the Bock lab, please cite:
+If you use CROP-seq and/or reagents from the Bock lab, please cite:
 ```
 Paul Datlinger, André F Rendeiro*, Christian Schmidl*, Thomas Krausgruber, Peter Traxler, Johanna Klughammer, Linda C Schuster, Amelie Kuchler, Donat Alpar, Christoph Bock (2016). Pooled CRISPR screening with single-cell transcriptome readout. Nature Methods. DOI: 10.1038/nmeth.4177.
 ```
