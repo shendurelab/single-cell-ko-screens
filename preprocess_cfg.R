@@ -259,6 +259,16 @@ sample_directories = sample_metadata$sample_directory
 guide_metadata = read.delim(args$guide_metadata, header=F, col.names=c('gene', 'guide'))
 guide_metadata$gene[guide_metadata$gene == "NonTargetingControlGuideForHuman"] = "NONTARGETING"
 
+duplicated_guides = duplicated(guide_metadata$guide)
+duplicated_rows = duplicated(guide_metadata)
+
+if (! all(duplicated_guides == duplicated_rows)) {
+    stop('Your guide_metadata sheet should have all unique rows, but does not. Amongst the duplicate sequences, at least one has discrepancies, so there are conflicting entries that you need to fix. Please correct conflicts and rerun.')
+} else if (sum(duplicated_rows) > 0) {
+    cat("WARNING: guide_metadata sheet should have all unique rows but does not. However, in this csae the entire row was duplicated so there are no conflicts. Running with the duplicates removed safely.\n")
+    guide_metadata = guide_metadata[!duplicated_rows, ]
+}
+
 # Load in barcodes
 ko_barcodes = lapply(sample_metadata$ko_barcode_file, read.delim, sep='\t', header=T)
 
