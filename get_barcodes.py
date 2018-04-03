@@ -241,9 +241,13 @@ if __name__ == '__main__':
     for bam in args.input_bams:
 
         if show_progress_bar:
-            total_reads = get_total_reads(bam)
-            bar = progressbar.ProgressBar(maxval=total_reads, widgets=[' [', progressbar.Timer(), '] ', progressbar.Bar(), ' (', progressbar.ETA(), ') ']).start()
-
+            try:
+                total_reads = get_total_reads(bam)
+                bar = progressbar.ProgressBar(maxval=total_reads, widgets=[' [', progressbar.Timer(), '] ', progressbar.Bar(), ' (', progressbar.ETA(), ') ']).start()
+            except:
+                # if BAM not indexed or some other issue, don't show progress bar
+                print('Could not get total reads (BAM may not be indexed), skipping progress bar...')
+                show_progress_bar = False
         read_number = 0
 
         for read in pysam.Samfile(bam):
