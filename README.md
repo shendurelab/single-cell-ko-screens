@@ -80,7 +80,9 @@ The 10X V2 library structure is quite different from V1 ([see here for details](
 
 The reverse primer is no longer a P7 primer for V2, it is a partial R1 primer in the first reaction:
 ```
-CTACACGACGCTCTTCCGATCT
+CTACACGACGCTCTTCCG
+(EDIT April 11, 2018: we previously recommended CTACACGACGCTCTTCCGATCT, which is the sequence used by 10X in cDNA amplification. We have since found that this primer does not provide good amplification reliably in this enrichment PCR due to mismatched Tm and recommend this new primer as a better option.)
+(WARNING April 11, 2018: Note that this new primer is not thoroughly tested yet, but will be by the end of this week.)
 ```
 
 and the remainder of R1 and P5 (separated by hyphen) is added in the second PCR (although could also do this at any point):
