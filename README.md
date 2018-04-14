@@ -50,73 +50,96 @@ Paul Datlinger, André F Rendeiro*, Christian Schmidl*, Thomas Krausgruber, Pete
 ## Enrichment PCR
 We find that using targeted amplification (as done in Dixit and Adamson et al.) increases the rate of assignment in CROP-seq experiment by approximately two-fold. 
 
-Our amplifications were performed on full-length cDNA prior to shearing, but for CROP-seq amplification out post-sheared product may be fine (not tested).
+Our amplifications were performed on full-length cDNA prior to shearing, but for CROP-seq amplification out post-sheared product may be fine with slightly different primers (not tested).
 
 Importantly, our paper describes a protocol for 10X V1, but 10X currently cells their V2 product. We present both protocols below for CROP-seq.
 
-### 10X V1 (what we did in the paper, but V1 no longer sold)
-All PCR reactions were performed with a P7 reverse primer (as introduced by the 10X V1 oligo DT RT primer). The PCR was performed with:
+Both protocols are nested PCRs where the first primer on one side is to an outer part of the U6 promoter on the first PCR and then an inner part of U6 on the second PCR (next to the guide sequence). We find this nesting helps, but protocols without nesting or with fewer steps may also be feasible. In all cases we monitor reactions on qPCR to avoid overcycling, which reduces the rate of chimeras that otherwise introduce low level noisy spurious guide assignments. While these are usually quite trivially excluded using simple threshold, our downstream scripts also detect and remove many chimeras using the UMI sequences.
 
+### 10X V1 (what we did in the paper, but V1 no longer sold)
+All PCR reactions were performed with a P7 reverse primer (as introduced by the 10X V1 oligo DT RT primer). 
+
+The forward primers for each reaction are listed below. 
+#### Reaction 1
 ```
 TTTCCCATGATTCCTTCATATTTGC
 ```
 
-as the forward primer, priming to part of the U6 promoter. In a second reaction, we then use:
+primes to part of the U6 promoter.
 
+#### Reaction 2
 ```
 TCGTCGGCAGCGTCAGATGTGTATAAGAGACAG-cTTGTGGAAAGGACGAAACAC
 ```
 
-as the forward primer, priming an inner portion of the U6 promoter adjacent to the guide sequence and adding the standard Nextera R1 primer. Samples were then indexed in a final PCR using standard Nextera P5 index primers of the form:
+primes an inner portion of the U6 promoter adjacent to the guide sequence and adding the standard Nextera R1 primer.
 
+#### Reaction 3
 ```
 AATGATACGGCGACCACCGAGATCTACAC[8bp Index]TCGTCGGCAGCGTC
 ```
 
+a nextera P5 index primer.
+
 Each PCR was cleaned with a 1.0X Ampure XP cleanup and one microliter of a 1:5 dilution of the first PCR was carried forward and a 1:25 dilution of the second PCR was carried into the final PCR reaction. PCRs were monitored by qPCR and stopped just prior to reaching saturation to avoid overamplification. The final PCR was run on a Bioanalyzer to confirm expected product size.
 
 ### 10X V2 (what you would probably have to do)
-The 10X V2 library structure is quite different from V1 ([see here for details](https://assets.contentful.com/an68im79xiti/4fIy9tr6qQuCWamIii0iEa/40658acce7a6756e38537584897840e3/CG000108_AssayConfiguration_SC3v2.pdf)), so the primers we use are different.
+WARNING: All datasets from our paper were 10X V1. Please note that while we have a protocol for V2 that we are fairly happy with, we have found some of the reactions to be a little finicky, so please keep that in mind. We may choose to optimize this protocol further and will update when we have more info. We have had good success with the protocol below in our hands.
+
+The 10X V2 library structure is quite different from V1 ([see here for details](https://assets.contentful.com/an68im79xiti/4fIy9tr6qQuCWamIii0iEa/40658acce7a6756e38537584897840e3/CG000108_AssayConfiguration_SC3v2.pdf)), so the primers need to change.
+
+#### Reaction 1
+Annealing temp: 65 degrees C, Kappa HiFi, 13ng+ of full length cDNA from cDNA amp as input
 
 The reverse primer is no longer a P7 primer for V2, it is a partial R1 primer in the first reaction:
 ```
-CTACACGACGCTCTTCCG
-(EDIT April 11, 2018: we previously recommended CTACACGACGCTCTTCCGATCT, which is the sequence used by 10X in cDNA amplification. We have since found that this primer does not provide good amplification reliably in this enrichment PCR due to mismatched Tm and recommend this new primer as a better option.)
-(WARNING April 11, 2018: Note that this new primer is not thoroughly tested yet, but will be by the end of this week.)
+ACACTCTTTCCCTACACGACG
+(WARNING: We designed this primer before seeing the full 10X library structure, so it only has 10bp of overlap with the cDNA amp products, but appears to work fine in our hands for the conditions provided here)
+(EDIT April 13, 2018: we previously recommended CTACACGACGCTCTTCCGATCT, which is the sequence used by 10X in cDNA amplification. We have since found that this primer does not provide good amplification reliably in this enrichment PCR, so have reverted to the primer above with 10bp overlap.)
 ```
 
-and the remainder of R1 and P5 (separated by hyphen) is added in the second PCR (although could also do this at any point):
-```
-AATGATACGGCGACCACCGA-GATCTACACTCTTTCCCTACACGACGCTC
-```
-
-The forward primers are similar but also slightly different we use R2 instead of R1 on this end due to the flipped construction of V2 libraries.
-
-The first PCR is done with:
+The forward primer for this PCR is:
 ```
 TTTCCCATGATTCCTTCATATTTGC
 ```
 
-as the forward primer, priming to part of the U6 promoter as above. In a second reaction, we then use:
+which primes to an outer part of the U6 promoter.
 
+#### Reaction 2
+Annealing temp: 65 degrees C, Kappa HiFi, 1:25 dilution of reaction 1 as input
+
+The remainder of R1 and P5 (separated by hyphen) is added in the second PCR (although could also do this at any point):
+```
+AATGATACGGCGACCACCGA-GATCTACACTCTTTCCCTACACGACGCTC
+```
+
+The forward primer is:
 ```
 GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAG-cTTGTGGAAAGGACGAAACAC
 ```
 
-as the forward primer, priming on the U6 promoter adjacent to the guide sequence and adding the standard Nextera R2 primer. Samples can then be indexed in a final PCR using standard Nextera P7 index primers of the form:
+which primes on the U6 promoter adjacent to the guide sequence and adds the standard Nextera R2 primer.
 
+#### Reaction 3
+Annealing temp: 72 degrees C, Kappa HiFi, 1:25 dilution of reaction 2 as input
+
+Same reverse primer from reaction 2 (see above):
+```
+AATGATACGGCGACCACCGA-GATCTACACTCTTTCCCTACACGACGCTC
+```
+
+We then index with nextera P7 index primers of the form:
 ```
 CAAGCAGAAGACGGCATACGAGAT[8bp Index]GTCTCGTGGGCTCGG
 ```
 
-Other details should be similar to V1 protocol although optimal annealing temps may vary.
-
+#### Example Reaction
 Here is an example of the products from each of the above 10X V2 enrichment PCR reactions run on a PAGE gel next to a unbiased 10X library as a reference (note there are two roughly 500bp bands for this ladder on PAGE gels):
 ![enrichment pcr](images/pcr_enrichment_gel_example.png)
 
 While there may be some other bands visible depending on exposure, we typically observe that approximately 99.9% of reads don't map to the reference used by cellranger (endogenous), and the majority of remaining fragments have what appear to be correct sequences with most remaining reads largely appearing to have errors due to things like sequencing errors, synthesis errors, PCR errors, etc. We have also seen a couple cells that have empty vectors with no guide (extremely infrequent). 
 
-While we have not tested them, protocols that reduce the number of steps using different primers or amplification directly from the final 10X libraries rather than unfragmented cDNA may both be feasible.
+While we have not tested them, protocols that reduce the number of steps using different primers or amplification directly from the final 10X libraries rather than unfragmented cDNA may both be feasible with some adjustments to primer sequences.
 
 ### Other protocols
 In principle, this protocol could be adapted to a number of different scRNA-seq methods. If it is not obvious how one might do this in your case, please let us know.
