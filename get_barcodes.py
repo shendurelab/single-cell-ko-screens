@@ -174,7 +174,7 @@ if __name__ == '__main__':
         from skbio.alignment import StripedSmithWaterman
     except ImportError:
         if not args.no_swalign:
-            raise RuntimeError('skbio library was not found. Please install (requires python 3) or rerun with --no_swalign option.')
+            raise RuntimeError('skbio library was not found. Rerun with --no_swalign option or install (requires python 3 and can be a bit of a pain to install, not a huge performance gain either way as long as you have plenty of reads.).')
 
     # Try to load progress bar library
     show_progress_bar = False
@@ -185,6 +185,9 @@ if __name__ == '__main__':
         print('Install progressbar2 package to show progress bar... proceeding without.')
 
     # Normalize inputs
+    if len(args.search_seq) <= 8:
+        raise ValueError('Specified search sequence (--search_seq) is 8bp or less, please run with a longer search sequence (8bp or greater).')
+
     args.search_seq = args.search_seq.upper()
 
     # Load whitelist
@@ -278,10 +281,11 @@ if __name__ == '__main__':
                 # Fall back on alignment when no perfect match found
                 alignment = query(seq)
 
-                # Skip reads that have a large number of mismatches to search seq
-                if (alignment.query_end - alignment.query_begin) < search_seq_length - 3:
+                # Skip reads that have too many  mismatches to search seq (allows roughly two mismatches or 1 indel kind of thing)
+                if alignment.optimal_alignment_score < max(0, 2 * len(search_seq) - 10):
                     continue
 
+                # Calculates the right barcode start index (works even when alignment doesn't include base before guide, etc.)
                 barcode_start = alignment.target_end_optimal + (len(args.search_seq) - alignment.query_end)
             else:
                 # No match found and no SW backup, so skip read

@@ -210,7 +210,7 @@ Note that by default, we use an unsupervised method for detecting chimeras from 
 
 We attempt to correct barcodes within a reasonable edit distance (which you may also set explicitly with `--force_correction <int>`). If a barcode is observed that was not correctable to your whitelist it will be prefixed with `unprocessed_`. This may result from sequences missing from your whitelist or reads with high rates of sequencing error, for example.
 
-Note that if you are running this script without `scikit-bio` installed (only available for python3), you will have to use the `--no_swalign` option. If you do have skbio, running with the default will allow the program to search for imperfect matches for the `--search-seq` thus rescuing as many reads as possible.
+Note that if you are running this script without `scikit-bio` installed (only available for python3), you will have to use the `--no_swalign` option. If you do have skbio, running with the default will allow the program to search for imperfect matches for the `--search-seq` thus rescuing as many reads as possible. It tries to allow for roughly 2 mismatches or an indel in the search sequence. Note that this only has marginal benefit when you have plenty of reads and the package is somewhat tricky to install (at least it was on my end). 
 
 Finally, a progress bar will be displayed when running this script if you have the `progressbar2` package installed.
 
