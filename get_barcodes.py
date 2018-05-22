@@ -142,6 +142,8 @@ def construct_mismatch_to_whitelist_map(whitelist, edit_distance):
     for mismatch_count in range(1, edit_distance + 1):
         mismatch_to_whitelist_map[mismatch_count] = {}
 
+        conflicting_mismatches = []  # tracks conflicts where mismatches map to different sequences
+
         for sequence in whitelist:
             sequence = sequence.upper()
 
@@ -150,7 +152,14 @@ def construct_mismatch_to_whitelist_map(whitelist, edit_distance):
 
             # Construct a mapping to the intended sequences
             for mismatch in mismatches:
+                # Check for conflict with existing sequence and track if so
+                if mismatch in mismatch_to_whitelist_map[mismatch_count]:
+                    conflicting_mismatches.append(mismatch)
                 mismatch_to_whitelist_map[mismatch_count][mismatch] = sequence
+
+        # Go back and remove any conflicting mismatches
+        for mismatch in set(conflicting_mismatches):
+            del mismatch_to_whitelist_map[mismatch_count][mismatch]
 
     return mismatch_to_whitelist_map
 
@@ -164,7 +173,7 @@ if __name__ == '__main__':
     parser.add_argument('--barcode_length', required=False, type=int, help='If you are not providing a whitelist, you must provide the length of your barcodes in bp.')
     parser.add_argument('--chimeric_threshold', type=float, default=0.2, help='Threshold for calling a UMI non-chimeric.')
     parser.add_argument('--no_swalign', action='store_true', help='Flag to turn off smith waterman alignment which otherwise requires skbio package / python 3')
-    parser.add_argument('--force_correction', type=int, help='Force correction to a specified edit distance. WARNING: if this is greater than or equal to the min edit distance between guides, corrections might reflect cross-talk between guide/barcode sequences.')
+    parser.add_argument('--force_correction', type=int, help='Force correction to a specified edit distance. Mismatches that can map to different sequences will be ignored and left uncorrected.')
     parser.add_argument('--save_raw_counts', help='Save a pickle formatted file of the raw mutation barcode count data. Useful if want to mess around with the raw data rather than processed read and UMI counts.')
 
     args = parser.parse_args()
@@ -189,6 +198,9 @@ if __name__ == '__main__':
         raise ValueError('Specified search sequence (--search_seq) is 8bp or less, please run with a longer search sequence (8bp or greater).')
 
     args.search_seq = args.search_seq.upper()
+
+    if args.force_correction > 3:
+        raise ValueError('--force_correction must be 3 or lower. The current implementation may not scale well in looking for mismatches of more than 3 bp away.')
 
     # Load whitelist
     if args.whitelist:
@@ -222,10 +234,11 @@ if __name__ == '__main__':
     # Determine edit distance for correction
     if args.force_correction is not None:
         if args.force_correction >= min_hamming_distance:
-            print('WARNING: edit distance specified by --force_correction (%s) is >= the min hamming distance between guides. Lowest edit distances: %s' % (args.force_correction, sorted(hamming_distances)[1:10]))
+            print('WARNING: edit distance specified by --force_correction (%s) is >= the min hamming distance between guides. Lowest edit distances: %s. Any mismatches that map to more than one potential sequence will be left uncorrected.' % (args.force_correction, sorted(hamming_distances)[1:10]))
         correction_edit_distance = max(int(min_hamming_distance / 2), args.force_correction)
     else:
-        correction_edit_distance = int(min_hamming_distance / 2)
+        # Only correct up to 3bp if running on defaults to avoid high memory usage
+        correction_edit_distance = min(int(min_hamming_distance / 2), 3)
 
     # Precompute sets of potential mismatches within one and two bases
     mismatch_to_whitelist_map = construct_mismatch_to_whitelist_map(barcode_whitelist, correction_edit_distance)
@@ -282,7 +295,7 @@ if __name__ == '__main__':
                 alignment = query(seq)
 
                 # Skip reads that have too many  mismatches to search seq (allows roughly two mismatches or 1 indel kind of thing)
-                if alignment.optimal_alignment_score < max(0, 2 * len(search_seq) - 10):
+                if alignment.optimal_alignment_score < max(0, 2 * len(args.search_seq) - 10):
                     continue
 
                 # Calculates the right barcode start index (works even when alignment doesn't include base before guide, etc.)
