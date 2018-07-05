@@ -7,6 +7,8 @@ library(ggplot2)
 library(gridExtra)
 library(scales)
 library(viridis)
+library(data.table)
+library(readr)
 options(stringsAsFactors=FALSE)
 options(bitmapType='cairo')
 
@@ -53,12 +55,10 @@ options(bitmapType='cairo')
     matrix_path = file.path(base_path, "matrix.mtx")
     genes_path = file.path(base_path, "genes.tsv")
     barcodes_path = file.path(base_path, "barcodes.tsv")
-    analysis_path = file.path(pipeline_dir, "outs", "analysis")
 
     if( ! file.exists(matrix_path) ) { stop(paste("Expression matrix not found in 10X output:", matrix_path)) }
     if( ! file.exists(genes_path) ) { stop(paste("Genes file not found in 10X output:", genes_path)) }
     if( ! file.exists(barcodes_path) ) { stop(paste("Barcodes file not found in 10X output:", barcodes_path)) }
-    if( ! file.exists(analysis_path) ) { stop(paste("Analysis  path not found in 10X output:", analysis_path)) }
 
     # All files exist, read them in
     matrix = Matrix::readMM(matrix_path)
@@ -75,7 +75,7 @@ options(bitmapType='cairo')
     matrix = matrix[gene_table[, 1], ] ## ensures order of genes matches between experiments
 
     # Construct metadata table that includes directory samples come from and other stats
-    total_umis = colSums(matrix)
+    total_umis = Matrix::colSums(matrix)
 
     metadata_df = data.frame(
       cell = colnames(matrix),
@@ -89,16 +89,16 @@ options(bitmapType='cairo')
     })
 
   # Now combine all the dataframes into one and make CDS
-  combined_expression_matrix = do.call(cBind, expression_matrices)
+  combined_expression_matrix = do.call(cbind, expression_matrices)
   row.names(combined_expression_matrix) = gene_table[, 1]
 
-  combined_metadata_df = do.call(rbind, metadata_dfs)
+  combined_metadata_df = dplyr::bind_rows(metadata_dfs)
   row.names(combined_metadata_df) = combined_metadata_df$cell
 
   colnames(gene_table) = c("id", "gene_short_name")
   row.names(gene_table) = gene_table$id
 
-  pd = new("AnnotatedDataFrame", data = combined_metadata_df)
+  pd = new("AnnotatedDataFrame", data = as.data.frame(combined_metadata_df))
   fd = new("AnnotatedDataFrame", data = gene_table)
   cds = newCellDataSet(combined_expression_matrix,
    phenoData=pd,
@@ -110,41 +110,48 @@ options(bitmapType='cairo')
 
 # Functions for preprocessing of KO barcode data
 # Can use with UMIs (umi = TRUE) or reads (UMI=FALSE)
-process_barcodes = function(barcodes, guide_metadata, umis=FALSE) {
+process_barcodes = function(barcodes, umis=FALSE) {
 	if (umis) {
-		barcodes$count_column = barcodes$umi_count 
+		barcodes$count_column = barcodes$umi_count
 	} else {
 		barcodes$count_column = barcodes$read_count
 	}
 
-	barcodes = barcodes[!str_detect(barcodes$barcode, 'unprocessed'), ]
-	barcodes = barcodes %>% dplyr::group_by(cell) %>% dplyr::mutate(proportion=count_column / sum(count_column)) %>% dplyr::ungroup()
+  # Prefiltering
+  barcodes = dplyr::as_tibble(barcodes)
+  barcodes = barcodes %>% dplyr::filter(count_column > 0)
+  barcodes = barcodes %>% filter(!grepl('unprocessed', barcode))
+
+	barcodes = barcodes %>%
+              dplyr::group_by(cell) %>%
+              dplyr::mutate(proportion=count_column / sum(count_column)) %>%
+              dplyr::ungroup()
 
 	# Make sure case matches
-	barcodes$barcode = toupper(barcodes$barcode)
-	guide_metadata$guide = toupper(guide_metadata$guide)
-
-	barcodes = merge(barcodes, guide_metadata, by.x="barcode", by.y="guide")
-
-	if (nrow(barcodes) == 0) {
-		stop('No rows found after merging guide metadata and barcode enrichment output... Are you sure these files are correct?')
-	}
-	return(barcodes %>% select(-count_column))
+	barcodes = barcodes %>% mutate(barcode=toupper(barcode))
+	return(barcodes)
 }
 
-get_filtered_barcodes = function(barcodes, reads_threshold=2, proportion_threshold=0.05, umis=FALSE) {
-        if (umis) {
-                barcodes$count_column = barcodes$umi_count
-        } else {
-                barcodes$count_column = barcodes$read_count
-        }
+get_filtered_barcodes = function(barcodes, guide_metadata, reads_threshold=2, proportion_threshold=0.05, umis=FALSE) {
+  if (umis) {
+          barcodes$count_column = barcodes$umi_count
+  } else {
+          barcodes$count_column = barcodes$read_count
+  }
 
-	barcodes.filtered = barcodes %>%
-  dplyr::filter(proportion > proportion_threshold & count_column > reads_threshold) %>%
-  dplyr::arrange(gene, barcode) %>%
-  dplyr::group_by(cell) %>%
-  dplyr::summarize(gene = paste0(unique(gene), collapse = "_"), all_gene=paste0(gene, collapse='_'), barcode = paste0(barcode, collapse = "_"), read_count = sum(read_count), umi_count = sum(umi_count), proportion = sum(proportion), guide_count = n())
+  barcodes.initial = barcodes %>%
+    dplyr::filter(proportion > proportion_threshold & count_column > reads_threshold)
 
+  guide_metadata = guide_metadata %>% mutate(guide=toupper(guide))
+  barcodes.initial = dplyr::inner_join(barcodes.initial, guide_metadata, by=c("barcode"="guide"))
+
+  barcodes.filtered = barcodes.initial %>%
+    dplyr::arrange(gene, barcode) %>%
+    dplyr::group_by(cell) %>%
+    dplyr::summarize(gene = paste0(unique(gene), collapse = "_"), all_gene=paste0(gene, collapse='_'), barcode = paste0(barcode, collapse = "_"), read_count = sum(read_count), umi_count = sum(umi_count), proportion = sum(proportion), guide_count = n())
+
+  # Make sure that the original metadata is preserved
+  barcodes.filtered = dplyr::inner_join(barcodes.filtered, unique(barcodes.initial[, !colnames(barcodes.initial) %in% c("gene", "all_gene", "barcode", "read_count", "umi_count", "proportion", "guide_count", "count_column")]))
   return(barcodes.filtered)
 }
 
@@ -155,7 +162,7 @@ expand_genotypes_to_indicator = function(pdata) {
 	all_kos = sort(unique(pdata[pdata$guide_count == 1,]$gene))
 
 	tx = lapply(all_kos, function(x) {
-    grepl(pattern = x, x = pdata$gene)
+    grepl(pattern = paste0('(^|_)', x, '(_|$)'), x = pdata$gene)
     })
 
 	tx_merged = as.data.frame(do.call(cbind, tx))
@@ -247,13 +254,15 @@ parser$add_argument('--genotype_indicator_columns', action='store_true', help='T
 args = parser$parse_args()
 
 # Load in metadata (sample_directory, ko_barcode_file, ...)
+cat('Loading metadata...\n')
 sample_metadata = utils::read.delim(args$sample_metadata, header=T, sep='\t')
 if (! all(c('sample_directory', 'ko_barcode_file') %in% colnames(sample_metadata))) {
-	stop('Sample metadata file must have sample_directory and ko_barcode_file columns.')
+  stop('Sample metadata file must have sample_directory and ko_barcode_file columns.')
 }
 
 sample_metadata$sample = unlist(lapply(sample_metadata$sample_directory, basename))
 sample_directories = sample_metadata$sample_directory
+
 
 # Load in data about mutants
 guide_metadata = read.delim(args$guide_metadata, header=F, col.names=c('gene', 'guide'))
@@ -270,41 +279,71 @@ if (! all(duplicated_guides == duplicated_rows)) {
 }
 
 # Load in barcodes
-ko_barcodes = lapply(sample_metadata$ko_barcode_file, read.delim, sep='\t', header=T)
+cat('Loading get_barcodes output...\n')
+ko_barcodes = lapply(1:nrow(sample_metadata), function(i) {
+  filename = sample_metadata$ko_barcode_file[i]
+  cat(paste0('    Loading file ', i, ' of ', nrow(sample_metadata), '...\n'))
+  return(readr::read_delim(filename, delim='\t'))
+})
 
 # Now process the barcodes
-ko_barcodes = lapply(ko_barcodes, function(x) { process_barcodes(x, guide_metadata, umis=args$umis) })
+# Now process the barcodes
+cat('Processing get_barcodes output...\n')
+guide_metadata = dplyr::as_tibble(guide_metadata)
+
+ko_barcodes = lapply(1:length(ko_barcodes), function(i) {
+  cat(paste0('    processing barcode set ', i, ' of ', length(ko_barcodes), '...\n'))
+  x = ko_barcodes[[i]]
+  process_barcodes(x, umis=args$umis)
+})
 
 ## Add on sample prefix to make cell names match the CDS
 if (! args$aggregated) {
-	ko_barcodes = lapply(1:length(ko_barcodes), function(i) { x = ko_barcodes[[i]]; x$cell = paste(x$cell, sample_metadata[i, "sample"], sep='_'); x$sample = sample_metadata[i, "sample"]; return(x)})
+  cat('Prefixing cell IDs...\n')
+  ko_barcodes = lapply(1:length(ko_barcodes), function(i) {
+    x = ko_barcodes[[i]]
+    x = x %>% mutate(cell = paste(cell, sample_metadata[i, "sample"], sep='_'),
+                     sample = sample_metadata[i, "sample"])
+    return(x)
+  })
+
 } else {
-	# Make everything match the aggregated output
-	sample_metadata$sample = paste(sample_metadata$sample, '-', 1:nrow(sample_metadata), sep='')
-	ko_barcodes = lapply(1:length(ko_barcodes), function(i) { x = ko_barcodes[[i]]; x$cell = stringr::str_replace(x$cell, '-1', ''); x$cell = paste(x$cell, '-', i, sep=''); x$sample = sample_metadata[i, "sample"]; return(x)})
+  # Make everything match the aggregated output
+  sample_metadata$sample = paste(sample_metadata$sample, '-', 1:nrow(sample_metadata), sep='')
+  ko_barcodes = lapply(1:length(ko_barcodes), function(i) {
+    x = ko_barcodes[[i]]
+    x = x %>% mutate(cell = stringr::str_replace(cell, '-1', ''),
+                     cell = paste(cell, '-', i, sep=''),
+                     sample = sample_metadata[i, "sample"])
+    return(x)
+  })
 }
 
 # Load in the RNA-seq data
+cat('Loading RNA-seq data...\n')
 if (! args$aggregated) {
-	aggregated_cds = .tenx_to_cds(sample_directories, genome=args$genome)
+  aggregated_cds = .tenx_to_cds(sample_directories, genome=args$genome)
 } else {
-	# User should have only specified one...
-	sample_directories = unique(sample_directories)
-	if (length(sample_directories) > 1) { stop('More than one sample directory specified for aggregated run, not allowed...')}
-	aggregated_cds = .tenx_to_cds(unique(sample_directories), genome=args$genome)
+  # User should have only specified one...
+  sample_directories = unique(sample_directories)
+  if (length(sample_directories) > 1) { stop('More than one sample directory specified for aggregated run, not allowed...')}
+  aggregated_cds = .tenx_to_cds(unique(sample_directories), genome=args$genome)
 
-	# Match cell names from KO barcodes
-	new_cells = stringr::str_replace(colnames(aggregated_cds), paste('_', basename(sample_directories), sep=''), '')
-	colnames(aggregated_cds) = new_cells
-	row.names(pData(aggregated_cds)) = new_cells
-	aggregated_cds$cell = new_cells
-	aggregated_cds$sample = paste(aggregated_cds$sample, str_extract(aggregated_cds$cell, '-[0-9]+'), sep='')
+  # Match cell names from KO barcodes
+  new_cells = stringr::str_replace(colnames(aggregated_cds), paste('_', basename(sample_directories), sep=''), '')
+  colnames(aggregated_cds) = new_cells
+  row.names(pData(aggregated_cds)) = new_cells
+  aggregated_cds$cell = new_cells
+  aggregated_cds$sample = paste(aggregated_cds$sample, str_extract(aggregated_cds$cell, '-[0-9]+'), sep='')
 }
 
 
 ## Generate QC plot for barcode enrichment
+cat('Generating QC plot...\n')
 if (! is.null(args$barcode_enrichment_qc_plot)) {
-    combined_barcodes_plot_df = do.call(rbind, ko_barcodes)
+    ## Generate QC plot for barcode enrichment
+    cat('    Combining KO barcodes across samples...\n')
+    combined_barcodes_plot_df = dplyr::bind_rows(ko_barcodes)
 
     if (args$umis) {
         combined_barcodes_plot_df$count_column = combined_barcodes_plot_df$umi_count
@@ -313,17 +352,19 @@ if (! is.null(args$barcode_enrichment_qc_plot)) {
     }
 
     combined_barcodes_plot_df = combined_barcodes_plot_df %>%
-    				dplyr::group_by(sample, cell) %>%
+    		dplyr::group_by(sample, cell) %>%
 				dplyr::mutate(valid=proportion > args$ko_assignment_proportion_threshold & count_column > args$ko_assignment_reads_threshold) %>%
-				dplyr::mutate(guide_count = sum(valid)) %>% 
+				dplyr::mutate(guide_count = sum(valid)) %>%
 				ungroup()
 
     combined_barcodes_plot_df$category = 'single guide'
     combined_barcodes_plot_df$category[!combined_barcodes_plot_df$cell %in% aggregated_cds$cell] = 'background barcode'
     combined_barcodes_plot_df$category[combined_barcodes_plot_df$guide_count < 1 & combined_barcodes_plot_df$category != 'background barcode'] = 'unassigned'
-    combined_barcodes_plot_df$category[combined_barcodes_plot_df$guide_count > 1 & combined_barcodes_plot_df$category != 'background barcode'] = 'multiple guides' 
- 
-    ggplot(combined_barcodes_plot_df, aes(x=proportion, y=log10(count_column))) +
+    combined_barcodes_plot_df$category[combined_barcodes_plot_df$guide_count > 1 & combined_barcodes_plot_df$category != 'background barcode'] = 'multiple guides'
+
+    cat('    Plotting...\n')
+    # Plot, excluding singletons if doesn't conflict with the user set threshold
+    ggplot(combined_barcodes_plot_df %>% filter(count_column > min(args$ko_assignment_reads_threshold, 1)), aes(x=proportion, y=log10(count_column))) +
         geom_point(data=subset(combined_barcodes_plot_df, category == 'background_barcode'), size=0.15, alpha=0.5, aes(color=category)) +
         geom_point(data=subset(combined_barcodes_plot_df, category != 'background_barcode'), size=0.15, alpha=0.5, aes(color=category)) +
         geom_vline(xintercept=args$ko_assignment_proportion_threshold, color="red", size=1) +
@@ -333,21 +374,23 @@ if (! is.null(args$barcode_enrichment_qc_plot)) {
         ylab(paste('log10(', ifelse(args$umis, 'umis', 'reads'), ' from barcode)', sep='')) +
         theme_cfg() +
         theme(panel.margin = unit(1, "lines")) +
-        scale_color_manual(values=c('background barcode'='#d3d3d3', 'multiple guides'='#51A7F9', 'single guide'='black', 'unassigned'='#F39019'), guide=FALSE) + 
+        scale_color_manual(values=c('background barcode'='#d3d3d3', 'multiple guides'='#51A7F9', 'single guide'='black', 'unassigned'='#F39019'), guide=FALSE) +
         ggsave(args$barcode_enrichment_qc_plot, height=5, width=8)
 }
 
+cat('Making barcode assignments...\n')
 # Make KO assignments
-ko_barcodes.filtered = lapply(ko_barcodes, get_filtered_barcodes, reads_threshold = args$ko_assignment_reads_threshold, proportion_threshold = args$ko_assignment_proportion_threshold, umis=args$umis)
+ko_barcodes.filtered = lapply(ko_barcodes, get_filtered_barcodes, guide_metadata, reads_threshold = args$ko_assignment_reads_threshold, proportion_threshold = args$ko_assignment_proportion_threshold, umis=args$umis)
 
 ## Also make sure any metadata not calculated in filtered set is present in final dataframe
-ko_barcodes.filtered = lapply(1:length(ko_barcodes), function(i) { merge(ko_barcodes.filtered[[i]], unique(ko_barcodes[[i]][, !colnames(ko_barcodes[[i]]) %in% c("gene", "all_gene", "barcode", "read_count", "umi_count", "proportion", "guide_count")])) })
+#ko_barcodes.filtered = lapply(1:length(ko_barcodes.filtered), function(i) { merge(ko_barcodes.filtered[[i]], unique(ko_barcodes[[i]][, !colnames(ko_barcodes[[i]]) %in% c("gene", "all_gene", "barcode", "read_count", "umi_count", "proportion", "guide_count")])) })
 
 # Make a final set of assignments
-all_assignments = do.call(rbind, ko_barcodes.filtered)
+all_assignments = dplyr::bind_rows(ko_barcodes.filtered)
 
 aggregate_samples_pdata = merge(pData(aggregated_cds), all_assignments, all.x=T)
 aggregate_samples_pdata = merge(aggregate_samples_pdata, sample_metadata)
+
 
 # Expand pdata to include a TRUE/FALSE column for every individual KO
 if (args$genotype_indicator_columns) {
@@ -355,6 +398,7 @@ if (args$genotype_indicator_columns) {
 }
 
 # Replace original pData
+cat('Saving final output...\n')
 row.names(aggregate_samples_pdata) = aggregate_samples_pdata$cell
 pData(aggregated_cds) = aggregate_samples_pdata[row.names(pData(aggregated_cds)), ]
 
@@ -363,6 +407,7 @@ pData(aggregated_cds) = aggregate_samples_pdata[row.names(pData(aggregated_cds))
 ##################################################################
 # Subset out each sample
 if ( args$size_factor_filter) {
+  cat('Finding and removing low size factor clusters...\n')
 	low_size_factor_results = lapply(unique(pData(aggregated_cds)$sample), function(x) {
 		cds_subset = aggregated_cds[, pData(aggregated_cds)$sample == x]
 		flag_low_size_factor_clusters(cds_subset, args$cell_detection_threshold, args$log2_size_factor_threshold)

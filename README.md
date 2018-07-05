@@ -171,6 +171,8 @@ The second tool, `preprocess_cfg.R`, requires:
 - gridExtra
 - scales
 - viridis
+- data.table
+- readr
 
 The final tool, `moi_capture_rate_generative_model.py`, requires:
 - scipy (scipy==0.19.0)
