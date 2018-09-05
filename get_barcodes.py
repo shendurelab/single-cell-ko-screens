@@ -59,31 +59,6 @@ def hamming_distance(str1, str2, capdistance=None):
     return diffs
 
 
-def correct_barcode(barcode, barcode_whitelist, mismatch_whitelist):
-    """
-    Correct an observed raw barcode to a barcode in a whitelist or a whitelist of mismatches.
-
-    Args:
-            barcode (string): barcode sequence to be corrected
-            barcode_whitelist (set of string): set of whitelist barcodes
-            mismatch_whitelist (nested dict): dict of mismatch count to dict of mismatched sequences to real sequences
-
-    Returns:
-            string: corrected barcodes or None if barcode not correctable.
-
-    """
-    barcode = barcode.upper()
-
-    if barcode in barcode_whitelist:
-        return barcode
-
-    for mismatch_count in sorted(mismatch_whitelist.keys()):
-        if barcode in mismatch_whitelist[mismatch_count]:
-            return mismatch_whitelist[mismatch_count][barcode]
-
-    return None
-
-
 def convert_to_counts(cell_barcode_dict):
     counts = {}
     for cell in cell_barcode_dict:
@@ -97,19 +72,39 @@ def convert_to_counts(cell_barcode_dict):
     return counts
 
 
-def generate_mismatches(sequence, num_mismatches):
+def correct_barcode(barcode, mismatch_map):
+    """
+    Correct an observed raw barcode to one of a list of whitelists of mismatches.
+    Args:
+            barcode (string): barcode sequence to be corrected
+            mismatch_map (list of dict dict): list of dict of mismatched sequences to real sequences
+    Returns:
+            string: corrected barcodes or None if barcode not correctable.
+    """
+    for mismatch_whitelist in mismatch_map:
+        corrected = mismatch_whitelist.get(barcode, None)
+
+        if corrected:
+            return corrected
+
+    return None
+
+
+def generate_mismatches(sequence, num_mismatches, allow_n=True):
     """
     Generate a list of mimatched sequences to a given sequence. Must only contain ATGC.
     This is heavily based on a biostars answer.
-
     Args:
         sequence (str): The sequence must contain only A, T, G, and C
         num_mismatches (int): number of mismatches to generate sequences for
-
+        allow_n (bool): True to allow N bases and False if not
     Yield:
-
     """
     letters = 'ACGT'
+
+    if allow_n:
+        letters += 'N'
+
     sequence = sequence.upper()
     mismatches = []
 
@@ -125,30 +120,35 @@ def generate_mismatches(sequence, num_mismatches):
     return mismatches
 
 
-def construct_mismatch_to_whitelist_map(whitelist, edit_distance):
+def construct_mismatch_to_whitelist_map(whitelist, edit_distance, allow_n=True):
     """
     Constructs a precomputed set of all mimatches within a specified edit distance and the barcode whitelist.
-
     Args:
         whitelist (set of str): set of whitelist sequences
         edit_distance (int): max edit distance to consider
-
+        allow_n (bool): True to allow N bases and False if not
     Returns:
         dict: mapping of mismatched sequences to their whitelist sequences
     """
 
-    mismatch_to_whitelist_map = {}
+    mismatch_to_whitelist_map = [None] * (edit_distance + 1)
+
+    mismatch_to_whitelist_map[0] = {k: k for k in whitelist}
+
+    conflicting_mismatches = []  # tracks conflicts where mismatches map to different sequences
+
+    # Doesn't really matter as correction function will never see it,
+    # but exclude any perfect matches to actual seqs by mismatches
+    conflicting_mismatches.extend(list(whitelist))
 
     for mismatch_count in range(1, edit_distance + 1):
         mismatch_to_whitelist_map[mismatch_count] = {}
-
-        conflicting_mismatches = []  # tracks conflicts where mismatches map to different sequences
 
         for sequence in whitelist:
             sequence = sequence.upper()
 
             # Generate all possible mismatches in range
-            mismatches = generate_mismatches(sequence, num_mismatches=mismatch_count)
+            mismatches = generate_mismatches(sequence, num_mismatches=mismatch_count, allow_n=allow_n)
 
             # Construct a mapping to the intended sequences
             for mismatch in mismatches:
@@ -159,7 +159,8 @@ def construct_mismatch_to_whitelist_map(whitelist, edit_distance):
 
         # Go back and remove any conflicting mismatches
         for mismatch in set(conflicting_mismatches):
-            del mismatch_to_whitelist_map[mismatch_count][mismatch]
+            if mismatch in mismatch_to_whitelist_map[mismatch_count]:
+                del mismatch_to_whitelist_map[mismatch_count][mismatch]
 
     return mismatch_to_whitelist_map
 
@@ -169,7 +170,7 @@ if __name__ == '__main__':
     parser.add_argument('--input_bams', '-i', nargs='+', help='Position sorted BAM (or list of bams) from 10X pipestance.')
     parser.add_argument('--output_file', '-o', help='Tab delimited file with cell, mutation barcode, read count, umi count. All observed barcodes correctable to a whitelist are reported.')
     parser.add_argument('--whitelist', required=False, default=None, help='Optional mutation barcode whitelist.')
-    parser.add_argument('--search_seq', required=True, help='Sequence to search for immediately upstream of the mutation barcode in transcript.')
+    parser.add_argument('--search_seq', required=False, help='Sequence to search for immediately upstream of the mutation barcode in transcript.')
     parser.add_argument('--barcode_length', required=False, type=int, help='If you are not providing a whitelist, you must provide the length of your barcodes in bp.')
     parser.add_argument('--chimeric_threshold', type=float, default=0.2, help='Threshold for calling a UMI non-chimeric.')
     parser.add_argument('--no_swalign', action='store_true', help='Flag to turn off smith waterman alignment which otherwise requires skbio package / python 3')
@@ -194,10 +195,11 @@ if __name__ == '__main__':
         print('Install progressbar2 package to show progress bar... proceeding without.')
 
     # Normalize inputs
-    if len(args.search_seq) <= 8:
+    if args.search_seq is not None and len(args.search_seq) <= 8:
         raise ValueError('Specified search sequence (--search_seq) is 8bp or less, please run with a longer search sequence (8bp or greater).')
 
-    args.search_seq = args.search_seq.upper()
+    if args.search_seq is not None:
+        args.search_seq = args.search_seq.upper()
 
     if args.force_correction > 3:
         raise ValueError('--force_correction must be 3 or lower. The current implementation may not scale well in looking for mismatches of more than 3 bp away.')
@@ -249,7 +251,10 @@ if __name__ == '__main__':
     else:
         query = None
 
-    search_seq_length = len(args.search_seq)
+    if args.search_seq is None:
+        search_seq_length = 0
+    else:
+        search_seq_length = len(args.search_seq)
 
     # Tracking of UMIs observed for cells for each guide
     mutation_barcodes = {}
@@ -286,29 +291,32 @@ if __name__ == '__main__':
                 continue
 
             # Given search seq, find barcode in seq keep track of all UMIs for that barcode/cell combo
-            search_seq_start = seq.rfind(args.search_seq)
-            if search_seq_start >= 0:
-                # If there was a perfect match, just use that
-                barcode_start = search_seq_start + len(args.search_seq)
-            elif not args.no_swalign:
-                # Fall back on alignment when no perfect match found
-                alignment = query(seq)
-
-                # Skip reads that have too many  mismatches to search seq (allows roughly two mismatches or 1 indel kind of thing)
-                if alignment.optimal_alignment_score < max(0, 2 * len(args.search_seq) - 10):
-                    continue
-
-                # Calculates the right barcode start index (works even when alignment doesn't include base before guide, etc.)
-                barcode_start = alignment.target_end_optimal + (len(args.search_seq) - alignment.query_end)
+            if args.search_seq is None:
+                search_seq_start = 0
             else:
-                # No match found and no SW backup, so skip read
-                continue
+                search_seq_start = seq.rfind(args.search_seq)
+                if search_seq_start >= 0:
+                    # If there was a perfect match, just use that
+                    barcode_start = search_seq_start + len(args.search_seq)
+                elif not args.no_swalign:
+                    # Fall back on alignment when no perfect match found
+                    alignment = query(seq)
+
+                    # Skip reads that have too many  mismatches to search seq (allows roughly two mismatches or 1 indel kind of thing)
+                    if alignment.optimal_alignment_score < max(0, 2 * len(args.search_seq) - 10):
+                        continue
+
+                    # Calculates the right barcode start index (works even when alignment doesn't include base before guide, etc.)
+                    barcode_start = alignment.target_end_optimal + (len(args.search_seq) - alignment.query_end)
+                else:
+                    # No match found and no SW backup, so skip read
+                    continue
 
             barcode = seq[barcode_start: barcode_start + args.barcode_length]
             barcodes_in_cell = mutation_barcodes.get(cell, dict())
 
             if barcode_whitelist and barcode not in barcode_whitelist:
-                corrected_barcode = correct_barcode(barcode, barcode_whitelist, mismatch_to_whitelist_map)
+                corrected_barcode = correct_barcode(barcode, mismatch_to_whitelist_map)
             else:
                 corrected_barcode = barcode
 
