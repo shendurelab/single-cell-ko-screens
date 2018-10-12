@@ -166,7 +166,7 @@ def construct_mismatch_to_whitelist_map(whitelist, edit_distance, allow_n=True):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser('Script to generate a file with counts of all mutation barcodes found within each cell in a 10X allelic series profiling experiment.')
+    parser = argparse.ArgumentParser('Script to generate a file with counts of all mutation barcodes found within each cell in a CROP-seq or similar experiment.')
     parser.add_argument('--input_bams', '-i', nargs='+', help='Position sorted BAM (or list of bams) from 10X pipestance.')
     parser.add_argument('--output_file', '-o', help='Tab delimited file with cell, mutation barcode, read count, umi count. All observed barcodes correctable to a whitelist are reported.')
     parser.add_argument('--whitelist', required=False, default=None, help='Optional mutation barcode whitelist.')
@@ -222,28 +222,27 @@ if __name__ == '__main__':
 
         args.barcode_length = barcode_lengths[0]
 
-    # Sanity check on hamming distance within whitelist
-    hamming_distances = []
-    for barcode in barcode_whitelist:
-        for other_barcode in barcode_whitelist:
-            if barcode == other_barcode:
-                continue
-            hamming_distances.append(hamming_distance(barcode, other_barcode))
-    min_hamming_distance = min(hamming_distances)
+    # Establish appropriate edit distance and create mapping of mismatches to sequences if whitelist provided
+    if barcode_whitelist is not None:
+        hamming_distances = []
+        for barcode in barcode_whitelist:
+            for other_barcode in barcode_whitelist:
+                if barcode == other_barcode:
+                    continue
+                hamming_distances.append(hamming_distance(barcode, other_barcode))
+        min_hamming_distance = min(hamming_distances)
+        print('[INFO]: min hamming distance in barcode whitelist: %s' % min_hamming_distance)
 
-    print('[INFO]: min hamming distance in barcode whitelist: %s' % min_hamming_distance)
-
-    # Determine edit distance for correction
-    if args.force_correction is not None:
-        if args.force_correction >= min_hamming_distance:
-            print('WARNING: edit distance specified by --force_correction (%s) is >= the min hamming distance between guides. Lowest edit distances: %s. Any mismatches that map to more than one potential sequence will be left uncorrected.' % (args.force_correction, sorted(hamming_distances)[1:10]))
-        correction_edit_distance = max(int(min_hamming_distance / 2), args.force_correction)
-    else:
-        # Only correct up to 3bp if running on defaults to avoid high memory usage
-        correction_edit_distance = min(int(min_hamming_distance / 2), 3)
-
-    # Precompute sets of potential mismatches within one and two bases
-    mismatch_to_whitelist_map = construct_mismatch_to_whitelist_map(barcode_whitelist, correction_edit_distance)
+        if args.force_correction is not None:
+            if args.force_correction >= min_hamming_distance:
+                print('WARNING: edit distance specified by --force_correction (%s) is >= the min hamming distance between guides. Lowest edit distances: %s. Any mismatches that map to more than one potential sequence will be left uncorrected.' % (args.force_correction, sorted(hamming_distances)[1:10]))
+            correction_edit_distance = args.force_correction
+        else:
+            # Only correct up to 3bp if running on defaults to avoid high memory usage
+            correction_edit_distance = min(int(min_hamming_distance / 2), 3)
+        
+        # Precompute sets of potential mismatches within one and two bases
+        mismatch_to_whitelist_map = construct_mismatch_to_whitelist_map(barcode_whitelist, correction_edit_distance)
 
     # Set up alignment if possible
     if not args.no_swalign:
@@ -256,7 +255,7 @@ if __name__ == '__main__':
     else:
         search_seq_length = len(args.search_seq)
 
-    # Tracking of UMIs observed for cells for each guide
+    # Tracking of UMIs observed in cells for each guide
     mutation_barcodes = {}
 
     for bam in args.input_bams:
