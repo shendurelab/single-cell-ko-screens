@@ -103,7 +103,7 @@ options(bitmapType='cairo')
   cds = newCellDataSet(combined_expression_matrix,
    phenoData=pd,
    featureData=fd,
-   expressionFamily=negbinomial.size(),
+   expressionFamily=VGAM::negbinomial.size(),
    lowerDetectionLimit=0.5)
   return(cds)
 }
