@@ -158,8 +158,8 @@ get_filtered_barcodes = function(barcodes, guide_metadata, reads_threshold=2, pr
 ## helper function to take initial gene column in pdata and expand to a set of columns (one for each KO)
 ## that indicates whether or not that cell had a given KO
 ## useful for some DE tests
-expand_genotypes_to_indicator = function(pdata) {
-	all_kos = sort(unique(pdata[pdata$guide_count == 1,]$gene))
+expand_genotypes_to_indicator = function(pdata, guide_metadata) {
+	all_kos = unique(guide_metadata$gene)
 
 	tx = lapply(all_kos, function(x) {
     grepl(pattern = paste0('(^|_)', x, '(_|$)'), x = pdata$gene)
@@ -394,7 +394,7 @@ aggregate_samples_pdata = merge(aggregate_samples_pdata, sample_metadata)
 
 # Expand pdata to include a TRUE/FALSE column for every individual KO
 if (args$genotype_indicator_columns) {
-    aggregate_samples_pdata = expand_genotypes_to_indicator(aggregate_samples_pdata)
+    aggregate_samples_pdata = expand_genotypes_to_indicator(aggregate_samples_pdata, guide_metadata)
 }
 
 # Replace original pData
