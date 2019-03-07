@@ -166,7 +166,7 @@ def construct_mismatch_to_whitelist_map(whitelist, edit_distance, allow_n=True):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser('Script to generate a file with counts of all mutation barcodes found within each cell in a CROP-seq or similar experiment.')
+    parser = argparse.ArgumentParser('Script to generate a file with counts of all mutation barcodes found within each cell in a CROP-seq or similar experiment. Assumes barcode/guide-sequence harboring transcripts are unmapped in BAM by default.')
     parser.add_argument('--input_bams', '-i', nargs='+', help='Position sorted BAM (or list of bams) from 10X pipestance.')
     parser.add_argument('--output_file', '-o', help='Tab delimited file with cell, mutation barcode, read count, umi count. All observed barcodes correctable to a whitelist are reported.')
     parser.add_argument('--whitelist', required=False, default=None, help='Optional mutation barcode whitelist.')
@@ -176,7 +176,7 @@ if __name__ == '__main__':
     parser.add_argument('--no_swalign', action='store_true', help='Flag to turn off smith waterman alignment which otherwise requires skbio package / python 3')
     parser.add_argument('--force_correction', type=int, help='Force correction to a specified edit distance. Mismatches that can map to different sequences will be ignored and left uncorrected.')
     parser.add_argument('--save_raw_counts', help='Save a pickle formatted file of the raw mutation barcode count data. Useful if want to mess around with the raw data rather than processed read and UMI counts.')
-
+    parser.add_argument('--all_reads', action='store_true', help='Flag to make script process all reads, not just unmapped reads. Useful if your barcoded transcripts show up as mapped in BAM.')
     args = parser.parse_args()
 
     # Try to load alignment library
@@ -278,7 +278,8 @@ if __name__ == '__main__':
             read_number += 1
 
             # Ignore mapped reads (can't belong to guide transcripts...)
-            if not read.is_unmapped:
+            ## unless the user wants all reads processed
+            if not read.is_unmapped and not args.all_reads:
                 continue
 
             seq = read.seq.upper()
