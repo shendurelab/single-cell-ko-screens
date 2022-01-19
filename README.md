@@ -263,7 +263,7 @@ Different `ko_assignment_*` thresholds can be chosen to be more or less strict a
 We have also explored using UMIs rather than reads for the latter two arguments and find that in some cases it improves results. If you want to use UMIs, you may specify the `--umis` option and the above thresholds will be with respect to UMI counts rather than read counts. The QC plot in this case would also use UMIs when using this option.
 
 The main output files from this script are (as named in toy example above):
-- `output_cds.R`: the monocle CellDataSet object in RDS format. Can be read into R with `readRDS` function. pData table of this CDS object is equivalent to the metadata table below.
+- `output_cds.rds`: the monocle CellDataSet object in RDS format. Can be read into R with `readRDS` function. pData table of this CDS object is equivalent to the metadata table below.
 - `output_metadata.txt`: a TSV formatted metadata table of cells and their assigned barcodes and metadata fields. Note that the `gene` column will contain the assigned gene (or genes) based on your `gene_barcode_association.txt` file. There are also a set of indicator columns with TRUE when a barcode to a given gene is observed in a given cell, `guide_count` column or the number of guides observed in the cell (passing above thresholds), columns that specify the guide/barcode sequences observed, etc. Most of them should be fairly self explanatory.
 - `qc_plot.png` (optional) this is a plot that we typically make to perform a quick check of our barcode enrichment libraries and the thresholds we have chosen. An example is provided below (see the supplement of our paper for details and more examples).
 
