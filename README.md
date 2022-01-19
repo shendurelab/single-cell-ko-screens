@@ -8,6 +8,11 @@ We provide info on:
 - how to download data from our paper
 - the complete set of scripts that we used for the analysis in the paper
 
+## Important Update
+This repository attempts to capture in some detail what we think are likely to be the most generic steps in the workflow of a CROP-seq screen or similar. Downstream analysis is highly indivdual and likely to change over time so while we've included a larger set of scripts than are described in detail within the README for completeness, they are likely not the right starting point for your particular study.
+
+(full disclosure, Andrew Hill works for 10x Genomics as of this writing) Since the completion of this project, 10x Genomics has also released both workflow and software features to make these sorts of screens easier (see [product description](https://www.10xgenomics.com/products/single-cell-crispr-screening)). It includes a revised workflow that detects Pol-III guide transcripts directly rather than relying on a secondary Pol-II transcript. However, even if you are using CROP-seq or any other vector design, you should be able to utilize cellranger (primary software tool from 10x) to process your data -- [see software docs page](https://support.10xgenomics.com/single-cell-gene-expression/software/pipelines/latest/using/feature-bc-analysis#crispr-cap). The example feature-reference CSV file suggested for feature barcoding in the context of CRISPR screens is geared towards 10x's workflow, so if you are using a non-10x workflow like CROP-seq you may need to adjust the feature reference to use an appropriate pattern for the construct you are using. 10x support should be able to help with this if the necessary modifications are not obvious from the documentation linked above. cellranger will automate guide assignment and basic differential expression testing / QC and provide outputs in a covenient format with no extra steps. I would personally recommend this path rather than the one documented here for anyone starting out now.
+
 ## Table of Contents
 * [Reagents](#reagents)
 * [Enrichment PCR](#enrichment-pcr)
