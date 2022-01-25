@@ -201,7 +201,7 @@ if __name__ == '__main__':
     if args.search_seq is not None:
         args.search_seq = args.search_seq.upper()
 
-    if args.force_correction > 3:
+    if args.force_correction and args.force_correction > 3:
         raise ValueError('--force_correction must be 3 or lower. The current implementation may not scale well in looking for mismatches of more than 3 bp away.')
 
     # Load whitelist
